@@ -32,7 +32,7 @@ export function AppSidebar({ session }: AppSidebarProps) {
           <Bug className="h-4 w-4 text-[hsl(var(--primary-foreground))]" />
         </div>
         <div>
-          <p className="text-sm font-semibold leading-tight">IssueTrack</p>
+          <p className="text-sm font-semibold leading-tight">IssueTracker</p>
           <p className="text-[11px] text-[hsl(var(--sidebar-foreground))/60] leading-tight opacity-60">
             Issue Management
           </p>

@@ -5,7 +5,7 @@ interface LoginPageProps {
 }
 
 export const metadata = {
-  title: "Sign In — IssueTrack",
+  title: "Sign In — IssueTracker",
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

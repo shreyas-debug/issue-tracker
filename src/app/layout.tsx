@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IssueTrack — Multi-Tenant Issue Management",
+  title: "IssueTracker — Multi-Tenant Issue Management",
   description: "A production-grade multi-tenant issue tracker with complete data isolation.",
 };
 

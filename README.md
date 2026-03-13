@@ -1,6 +1,6 @@
-# IssueTrack — Multi-Tenant Issue Management
+# IssueTracker — Multi-Tenant Issue Management
 
-**IssueTrack** is a production-grade Mini SaaS application that lets multiple organizations track, manage, and resolve software issues — all within a single shared infrastructure, with complete data isolation between tenants.
+**IssueTracker** is a production-grade Mini SaaS application that lets multiple organizations track, manage, and resolve software issues — all within a single shared infrastructure, with complete data isolation between tenants.
 
 Think of it as a self-contained, architectural blueprint for how a real SaaS product like Linear or Jira operates at its foundation: each customer (organization) signs up, gets their own private workspace, and can never see or access another organization's data — even though all data lives in the same PostgreSQL database.
 

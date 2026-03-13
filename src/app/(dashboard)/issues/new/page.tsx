@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 
 export const metadata = {
-  title: "New Issue — IssueTrack",
+  title: "New Issue — IssueTracker",
 };
 
 export default async function NewIssuePage() {

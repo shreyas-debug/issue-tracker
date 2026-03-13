@@ -20,7 +20,7 @@ interface IssuesPageProps {
 }
 
 export const metadata = {
-  title: "Issues — IssueTrack",
+  title: "Issues — IssueTracker",
 };
 
 async function IssueList({

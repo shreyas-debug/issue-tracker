@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Building2, ShieldCheck, User } from "lucide-react";
 
 export const metadata = {
-  title: "Settings — IssueTrack",
+  title: "Settings — IssueTracker",
 };
 
 export default async function SettingsPage() {
