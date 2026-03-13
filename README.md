@@ -87,9 +87,9 @@ The hardest problem in multi-tenant SaaS is not building the features — it's e
 
 ### On the choice of Next.js over standalone Express
 
-The challenge specifies Node.js as the backend runtime. Next.js satisfies this fully — it runs on Node.js and its App Router provides a first-class backend layer through API Routes (`/app/api/*`) and Server Actions, both of which execute server-side on Node.js with the full Node.js module ecosystem available.
+Next.js runs on Node.js and its App Router provides a first-class backend layer through API Routes (`/app/api/*`) and Server Actions, both of which execute server-side on Node.js with the full Node.js module ecosystem available. This makes it a complete backend runtime, not just a frontend framework.
 
-Choosing Next.js over a separate Express server is a deliberate architectural decision, not a shortcut:
+Choosing Next.js over a separate Express server is a deliberate architectural decision:
 
 - **Unified deployment** — One repository, one deployment, one process. A standalone Express + React setup requires coordinating two separate deployments, two CORS configurations, and two build pipelines.
 - **Co-located API and UI** — API routes live alongside the components that consume them, making the data contract explicit and eliminating the "backend as a black box" problem common in separated architectures.
