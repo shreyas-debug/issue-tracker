@@ -277,7 +277,7 @@ datasource db {
 
 | | |
 |---|---|
-| **Application URL** | *(add your Vercel URL here after deploying)* |
+| **Application URL** | https://issue-tracker-navy-two.vercel.app/ |
 | **Demo — Acme Corp** | `acme@example.com` / `password123` |
 | **Demo — Stark Industries** | `stark@example.com` / `password123` |
 
