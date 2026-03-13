@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  issues    Issue[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  name           String
+  passwordHash   String
+  role           Role         @default(MEMBER)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedIssues Issue[]      @relation("AssignedTo")
+  createdIssues  Issue[]      @relation("CreatedBy")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Issue {
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  status         Status       @default(OPEN)
+  priority       Priority     @default(MEDIUM)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedToId   String?
+  assignedTo     User?        @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, id])
+  @@index([organizationId, status])
+  @@index([organizationId, priority])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum Status {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
