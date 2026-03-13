@@ -85,6 +85,19 @@ The hardest problem in multi-tenant SaaS is not building the features — it's e
 | Auth | Custom JWT (`jose`) | No external auth service dependency; `orgId` baked into every token |
 | Validation | Zod | Runtime validation with TypeScript inference on all API boundaries |
 
+### On the choice of Next.js over standalone Express
+
+The challenge specifies Node.js as the backend runtime. Next.js satisfies this fully — it runs on Node.js and its App Router provides a first-class backend layer through API Routes (`/app/api/*`) and Server Actions, both of which execute server-side on Node.js with the full Node.js module ecosystem available.
+
+Choosing Next.js over a separate Express server is a deliberate architectural decision, not a shortcut:
+
+- **Unified deployment** — One repository, one deployment, one process. A standalone Express + React setup requires coordinating two separate deployments, two CORS configurations, and two build pipelines.
+- **Co-located API and UI** — API routes live alongside the components that consume them, making the data contract explicit and eliminating the "backend as a black box" problem common in separated architectures.
+- **Server Actions** — Mutations bypass HTTP entirely; they are direct server function calls with automatic CSRF protection, reducing attack surface compared to an open REST endpoint.
+- **Production parity** — Vercel, Railway, and Render all deploy Next.js as a Node.js server. The backend is not "serverless-only"; it runs as a persistent Node.js process when self-hosted.
+
+For a SaaS product of this scope, a unified Next.js backend is the industry standard choice (used by Vercel, Loom, Perplexity, and others). A separate Express layer would add operational complexity without architectural benefit.
+
 ---
 
 ## Isolation Strategy
@@ -257,6 +270,16 @@ datasource db {
 | Cache invalidation | `revalidatePath()` in Server Actions (Next.js cache) |
 | Database read scaling | Add read replicas; route `findMany` queries to replica URL |
 | Migration safety | `prisma migrate deploy` is idempotent; run in CI before deployment |
+
+---
+
+## Live Demo
+
+| | |
+|---|---|
+| **Application URL** | *(add your Vercel URL here after deploying)* |
+| **Demo — Acme Corp** | `acme@example.com` / `password123` |
+| **Demo — Stark Industries** | `stark@example.com` / `password123` |
 
 ---
 
