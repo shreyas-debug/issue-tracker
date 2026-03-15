@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { z } from "zod";
 import { signToken } from "@/lib/auth/jwt";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getUserByEmail } from "@/services/user.service";
-
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-});
+import { loginSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
   try {

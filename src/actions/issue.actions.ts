@@ -1,31 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { withTenant } from "@/lib/middleware/withTenant";
 import {
   createIssue,
   updateIssue,
   deleteIssue,
 } from "@/services/issue.service";
+import {
+  createIssueSchema,
+  updateIssueSchema,
+} from "@/lib/validation/schemas";
 import type { ActionResult, IssueDTO } from "@/types";
-
-const createIssueSchema = z.object({
-  title: z.string().min(1, "Title is required").max(255),
-  description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
-  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
-  assignedToId: z.string().optional(),
-});
-
-const updateIssueSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1).max(255).optional(),
-  description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
-  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
-  assignedToId: z.string().nullable().optional(),
-});
 
 export async function createIssueAction(
   formData: FormData

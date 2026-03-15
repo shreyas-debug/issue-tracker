@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { z } from "zod";
 import { signToken } from "@/lib/auth/jwt";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { createOrganization } from "@/services/org.service";
-
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  organizationName: z.string().min(2, "Organization name must be at least 2 characters"),
-});
+import { registerSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
   try {

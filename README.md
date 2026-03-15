@@ -1,4 +1,4 @@
-﻿# IssueTracker - Multi-Tenant Issue Management
+# IssueTracker - Multi-Tenant Issue Management
 
 **IssueTracker** is a production-grade Mini SaaS application that lets multiple organizations track, manage, and resolve software issues - all within a single shared infrastructure, with complete data isolation between tenants.
 
@@ -27,8 +27,9 @@ The hardest problem in multi-tenant SaaS is not building the features - it's ens
 4. [Security Layer](#security-layer)
 5. [Deployment & Scaling](#deployment--scaling)
 6. [Getting Started](#getting-started)
-7. [Testing Tenant Isolation](#testing-tenant-isolation)
-8. [Project Structure](#project-structure)
+7. [Automated Test Suite](#automated-test-suite)
+8. [Testing Tenant Isolation](#testing-tenant-isolation)
+9. [Project Structure](#project-structure)
 
 ---
 
@@ -331,6 +332,36 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## Automated Test Suite
+
+The project ships with 81 tests across 5 suites, powered by [Vitest](https://vitest.dev). Tests are structured in three layers: pure unit tests, service-layer tests with mocked dependencies, and schema validation tests.
+
+```bash
+npm run test            # run all tests once
+npm run test:watch      # watch mode during development
+npm run test:coverage   # generate HTML coverage report
+```
+
+### Test structure
+
+| Suite | File | What it covers |
+|---|---|---|
+| JWT Utilities | `__tests__/lib/auth/jwt.test.ts` | Token signing, payload embedding, tamper detection, invalid inputs |
+| Tenant Isolation Engine | `__tests__/lib/db/tenant-extension.test.ts` | `organizationId` injection on all Prisma operations, cross-tenant independence |
+| Issue Service | `__tests__/services/issue.service.test.ts` | Pagination, filtering, CRUD correctness, IDOR null-return, partial updates |
+| Validation Schemas | `__tests__/lib/validation/schemas.test.ts` | All Zod schemas - valid inputs, boundary violations, enum exhaustiveness |
+| Utility Functions | `__tests__/lib/utils.test.ts` | `slugify`, `formatDate`, `formatRelativeTime`, label/color maps |
+
+### Why these test layers?
+
+**JWT tests** are pure unit tests with no mocks - `jose` runs on Node.js crypto so tokens can be signed and verified in-process. These tests confirm that the tenant boundary (`orgId`) is correctly embedded and that tampered tokens are rejected.
+
+**Tenant extension tests** are the most architecturally significant. The Prisma client is mocked to capture the extension configuration. Each interceptor handler is invoked directly with controlled `args`, verifying that `organizationId` is injected into every operation - `findMany`, `findFirst`, `update`, `delete`, `deleteMany`, `count` - regardless of what the caller passes. A dedicated cross-tenant test confirms that two clients with different `orgId` values produce fully independent query scopes.
+
+**Issue service tests** mock the `TenantClient` interface to verify business logic in isolation from the database. Key coverage: pagination math, search filter construction, default values on create, partial-update field exclusion, and null-return behavior for non-existent records.
+
+---
+
 ## Testing Tenant Isolation
 
 The seed script creates two fully isolated tenants. Follow these steps to verify the isolation boundary:
@@ -374,6 +405,13 @@ This confirms the Prisma Extension is operating correctly on every request.
 
 ```
 src/
+├── __tests__/
+│   ├── lib/auth/jwt.test.ts          # JWT sign/verify unit tests
+│   ├── lib/db/tenant-extension.test.ts # Isolation engine tests (mocked Prisma)
+│   ├── lib/validation/schemas.test.ts  # Zod schema validation tests
+│   ├── lib/utils.test.ts             # Utility function tests
+│   └── services/issue.service.test.ts  # Service layer tests (mocked DB)
+│
 ├── app/
 │   ├── (auth)/login          # Login page (no sidebar layout)
 │   ├── (auth)/register       # Registration page
@@ -388,7 +426,8 @@ src/
 │   ├── auth/session.ts       # Cookie-based session reading
 │   ├── db/prisma.ts          # Singleton Prisma client
 │   ├── db/tenant-extension.ts # The isolation engine
-│   └── middleware/withTenant.ts # Action shield
+│   ├── middleware/withTenant.ts # Action shield
+│   └── validation/schemas.ts # Shared Zod schemas
 │
 ├── services/
 │   ├── issue.service.ts      # Issue CRUD (accepts TenantClient)
