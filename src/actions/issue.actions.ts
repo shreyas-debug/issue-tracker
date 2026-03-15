@@ -11,7 +11,24 @@ import {
   createIssueSchema,
   updateIssueSchema,
 } from "@/lib/validation/schemas";
+import { prisma } from "@/lib/db/prisma";
 import type { ActionResult, IssueDTO } from "@/types";
+
+/**
+ * Validates that a user ID belongs to the given organization.
+ * Prevents cross-tenant user references where an issue in org A could be
+ * assigned to a user from org B, leaking that user's identity.
+ */
+async function validateAssignee(
+  assignedToId: string,
+  orgId: string
+): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: assignedToId, organizationId: orgId },
+    select: { id: true },
+  });
+  return user !== null;
+}
 
 export async function createIssueAction(
   formData: FormData
@@ -33,6 +50,16 @@ export async function createIssueAction(
       return { success: false, error: parsed.error.issues[0].message };
     }
 
+    if (parsed.data.assignedToId) {
+      const valid = await validateAssignee(parsed.data.assignedToId, orgId);
+      if (!valid) {
+        return {
+          success: false,
+          error: "Assigned user does not belong to your organization",
+        };
+      }
+    }
+
     const issue = await createIssue(db, orgId, session.sub, parsed.data);
 
     revalidatePath("/issues");
@@ -50,7 +77,13 @@ export async function updateIssueAction(
   formData: FormData
 ): Promise<ActionResult<IssueDTO>> {
   try {
-    const { db } = await withTenant();
+    const { db, orgId } = await withTenant();
+
+    // Normalize assignedToId: field absent → undefined (no change),
+    // empty string → null (unassign), non-empty string → keep as-is.
+    const rawAssignee = formData.get("assignedToId");
+    const assignedToId =
+      rawAssignee === null ? undefined : rawAssignee || null;
 
     const raw = {
       id: formData.get("id"),
@@ -58,13 +91,23 @@ export async function updateIssueAction(
       description: formData.get("description") || undefined,
       priority: formData.get("priority") || undefined,
       status: formData.get("status") || undefined,
-      assignedToId: formData.get("assignedToId") ?? undefined,
+      assignedToId,
     };
 
     const parsed = updateIssueSchema.safeParse(raw);
 
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0].message };
+    }
+
+    if (parsed.data.assignedToId) {
+      const valid = await validateAssignee(parsed.data.assignedToId, orgId);
+      if (!valid) {
+        return {
+          success: false,
+          error: "Assigned user does not belong to your organization",
+        };
+      }
     }
 
     const { id, ...updates } = parsed.data;

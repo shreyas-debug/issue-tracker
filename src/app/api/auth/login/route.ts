@@ -4,9 +4,25 @@ import { signToken } from "@/lib/auth/jwt";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getUserByEmail } from "@/services/user.service";
 import { loginSchema } from "@/lib/validation/schemas";
+import { checkRateLimit, resetRateLimit } from "@/lib/security/rate-limiter";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown";
+    const limit = checkRateLimit(ip);
+
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfter) },
+        }
+      );
+    }
+
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
 
@@ -44,6 +60,8 @@ export async function POST(request: NextRequest) {
       name: user.name,
       orgName: user.organization.name,
     });
+
+    resetRateLimit(ip);
 
     const response = NextResponse.json({
       user: {

@@ -99,6 +99,18 @@ Choosing Next.js over a separate Express server is a deliberate architectural de
 
 For a SaaS product of this scope, a unified Next.js backend is the industry standard choice (used by Vercel, Loom, Perplexity, and others). A separate Express layer would add operational complexity without architectural benefit.
 
+### On the absence of a separate Controller layer
+
+A common MVC pattern adds a controller layer between routes and services:
+
+```
+routes/ -> controllers/ -> services/ -> ORM
+```
+
+In Next.js App Router this would look like `route.ts -> controller.ts -> service.ts`. The `route.ts` file already serves as the controller: it parses the HTTP request, validates input via Zod, calls the service, handles errors, and formats the HTTP response. Each route file is small, single-responsibility, and fully testable. Adding a separate controller file for each route would introduce an indirection layer without any architectural gain.
+
+Server Actions eliminate the pattern entirely for mutations: there is no HTTP layer to parse, so there is no "controller" in the traditional sense. The action calls `withTenant()`, validates input, calls the service, and returns a typed result — all in one composable function.
+
 ---
 
 ## Isolation Strategy
@@ -216,7 +228,47 @@ This creates a single, mandatory authentication checkpoint. Adding a new mutatio
 
 ### 4. Route-Level Protection
 
-The Next.js `middleware.ts` runs on every non-static request, verifying the JWT before the request reaches any route handler. Unauthenticated requests are redirected to `/login` before any server component renders.
+`proxy.ts` (Next.js middleware) runs on every non-static request, verifying the JWT before the request reaches any route handler. Unauthenticated requests are redirected to `/login` before any server component renders. Authenticated users visiting `/login` or `/register` are redirected to `/issues`, preventing session duplication.
+
+### 5. Login Rate Limiting
+
+The login endpoint applies a sliding-window rate limit: **5 attempts per 15 minutes per IP address**. A sixth attempt within the window receives `429 Too Many Requests` with a `Retry-After` header indicating the seconds remaining. On a successful login, the counter for that IP is reset — ensuring legitimate users are not locked out after a password recovery.
+
+```
+POST /api/auth/login
+X-Forwarded-For: 203.0.113.5
+
+> Attempt 1-5: 200 OK
+> Attempt 6:   429 Too Many Requests
+              Retry-After: 847
+```
+
+Production note: the current implementation uses an in-process `Map`. For deployments with multiple instances, replace with a shared TTL store (Redis via Upstash) to maintain consistent counts across all processes.
+
+### 6. Cross-Tenant Assignee Validation
+
+A subtle but critical gap in multi-tenant issue trackers: when assigning an issue, the `assignedToId` must be validated against the current organization. Without this check, an attacker could assign their issues to user IDs from other tenants, leaking the existence and IDs of foreign users (a form of user enumeration).
+
+This is enforced in the Server Actions before any database write:
+
+```typescript
+if (parsed.data.assignedToId) {
+  const valid = await prisma.user.findFirst({
+    where: { id: assignedToId, organizationId: orgId },
+  });
+  if (!valid) return { error: "Assigned user does not belong to your organization" };
+}
+```
+
+An invalid `assignedToId` is rejected before the issue is created or updated.
+
+### 7. Form Field Normalization
+
+HTML forms submit empty strings (`""`) for optional fields when left blank. Without normalization, an empty `assignedToId` field would reach Prisma as `""`, producing a misleading database error. The update action normalizes this explicitly:
+
+- Field absent from FormData - `undefined` (no change to assignment)
+- Field present but empty string - `null` (unassign the current user)
+- Field present with a value - treated as a user ID and cross-tenant validated
 
 ---
 
@@ -334,7 +386,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Automated Test Suite
 
-The project ships with 81 tests across 5 suites, powered by [Vitest](https://vitest.dev). Tests are structured in three layers: pure unit tests, service-layer tests with mocked dependencies, and schema validation tests.
+The project ships with 88 tests across 6 suites, powered by [Vitest](https://vitest.dev). Tests are structured in three layers: pure unit tests, service-layer tests with mocked dependencies, and schema validation tests.
 
 ```bash
 npm run test            # run all tests once
@@ -348,6 +400,7 @@ npm run test:coverage   # generate HTML coverage report
 |---|---|---|
 | JWT Utilities | `__tests__/lib/auth/jwt.test.ts` | Token signing, payload embedding, tamper detection, invalid inputs |
 | Tenant Isolation Engine | `__tests__/lib/db/tenant-extension.test.ts` | `organizationId` injection on all Prisma operations, cross-tenant independence |
+| Rate Limiter | `__tests__/lib/security/rate-limiter.test.ts` | Sliding-window enforcement, reset on success, per-IP independence |
 | Issue Service | `__tests__/services/issue.service.test.ts` | Pagination, filtering, CRUD correctness, IDOR null-return, partial updates |
 | Validation Schemas | `__tests__/lib/validation/schemas.test.ts` | All Zod schemas - valid inputs, boundary violations, enum exhaustiveness |
 | Utility Functions | `__tests__/lib/utils.test.ts` | `slugify`, `formatDate`, `formatRelativeTime`, label/color maps |
@@ -406,11 +459,12 @@ This confirms the Prisma Extension is operating correctly on every request.
 ```
 src/
 ├── __tests__/
-│   ├── lib/auth/jwt.test.ts          # JWT sign/verify unit tests
-│   ├── lib/db/tenant-extension.test.ts # Isolation engine tests (mocked Prisma)
-│   ├── lib/validation/schemas.test.ts  # Zod schema validation tests
-│   ├── lib/utils.test.ts             # Utility function tests
-│   └── services/issue.service.test.ts  # Service layer tests (mocked DB)
+│   ├── lib/auth/jwt.test.ts              # JWT sign/verify unit tests
+│   ├── lib/db/tenant-extension.test.ts   # Isolation engine tests (mocked Prisma)
+│   ├── lib/security/rate-limiter.test.ts # Rate limiter sliding-window tests
+│   ├── lib/validation/schemas.test.ts    # Zod schema validation tests
+│   ├── lib/utils.test.ts                 # Utility function tests
+│   └── services/issue.service.test.ts    # Service layer tests (mocked DB)
 │
 ├── app/
 │   ├── (auth)/login          # Login page (no sidebar layout)
@@ -425,9 +479,10 @@ src/
 │   ├── auth/jwt.ts           # Token signing and verification
 │   ├── auth/session.ts       # Cookie-based session reading
 │   ├── db/prisma.ts          # Singleton Prisma client
-│   ├── db/tenant-extension.ts # The isolation engine
-│   ├── middleware/withTenant.ts # Action shield
-│   └── validation/schemas.ts # Shared Zod schemas
+│   ├── db/tenant-extension.ts    # The isolation engine
+│   ├── middleware/withTenant.ts  # Action shield
+│   ├── security/rate-limiter.ts  # IP-based sliding-window rate limiter
+│   └── validation/schemas.ts    # Shared Zod schemas
 │
 ├── services/
 │   ├── issue.service.ts      # Issue CRUD (accepts TenantClient)
@@ -445,5 +500,5 @@ src/
 │   └── auth/                 # LoginForm, RegisterForm
 │
 ├── types/index.ts            # Shared TypeScript interfaces
-└── middleware.ts             # Route-level JWT verification
+└── proxy.ts                  # Route-level JWT verification (Next.js middleware)
 ```
